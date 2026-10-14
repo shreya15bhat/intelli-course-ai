@@ -7,7 +7,8 @@ load_dotenv(BASE_DIR / ".env")
 
 class Config:
     SECRET_KEY = os.getenv("FLASK_SECRET_KEY", "dev-only-change-me-before-deployment")
-    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", "sqlite:///intelli_course.db")
+    _db_default = "sqlite:////tmp/intelli_course.db" if os.getenv("VERCEL") else "sqlite:///intelli_course.db"
+    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL", _db_default)
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "").strip()
     GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-3.1-flash-lite")
