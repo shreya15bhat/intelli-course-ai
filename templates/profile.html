@@ -1,0 +1,60 @@
+{% extends 'base.html' %}
+{% block title %}Profile & Achievements{% endblock %}
+{% block page_name %}Profile & Achievements{% endblock %}
+
+{% block content %}
+<div class="profile-hero panel-card">
+  <div class="profile-big-avatar">{{ current_user.name[:1]|upper }}</div>
+  <div>
+    <div class="eyebrow">YOUR LEARNING IDENTITY</div>
+    <h1>{{ current_user.name }}</h1>
+    <p>{{ current_user.email }}</p>
+    <span class="status-pill">{{ current_user.level }} learner</span>
+  </div>
+  <div class="profile-xp">
+    <i class="fa-solid fa-bolt"></i>
+    <b id="xpPoints">0 XP</b>
+    <span>Keep learning to build your streak</span>
+  </div>
+</div>
+
+<div class="section-heading">
+  <div>
+    <h2>Learning achievements</h2>
+    <p>Milestones will unlock as you make progress.</p>
+  </div>
+</div>
+
+<div class="achievement-grid">
+  <div class="achievement-card">
+    <span class="achievement-icon"><i class="fa-solid fa-flag-checkered"></i></span>
+    <b>First steps</b>
+    <p>Complete your first lesson.</p>
+    <span class="status-pill" id="firstBadge">In progress</span>
+  </div>
+  <div class="achievement-card">
+    <span class="achievement-icon"><i class="fa-solid fa-brain"></i></span>
+    <b>Quiz explorer</b>
+    <p>Submit your first assessment.</p>
+    <span class="status-pill" id="quizBadge">In progress</span>
+  </div>
+  <div class="achievement-card">
+    <span class="achievement-icon"><i class="fa-solid fa-graduation-cap"></i></span>
+    <b>Course finisher</b>
+    <p>Complete every lesson in a course.</p>
+    <span class="status-pill">Locked</span>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+fetch('/api/analytics')
+  .then(r => r.json())
+  .then(d => {
+    document.getElementById('xpPoints').textContent = (d.completed_lessons * 10 + d.quiz_attempts * 5) + ' XP';
+    if (d.completed_lessons > 0) document.getElementById('firstBadge').textContent = 'Unlocked';
+    if (d.quiz_attempts > 0) document.getElementById('quizBadge').textContent = 'Unlocked';
+  });
+</script>
+{% endblock %}

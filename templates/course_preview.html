@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+{% block title %}{{ course.title }} — Course Overview{% endblock %}
+{% block page_name %}Course Overview{% endblock %}
+
+{% block content %}
+<div class="overview-header-card panel-card">
+  <div class="row align-items-center">
+    <div class="col-lg-8 col-md-12">
+      <a class="back-link mb-3 d-inline-block" href="{{ url_for('dashboard') }}">
+        <i class="fa-solid fa-arrow-left"></i> Back to Dashboard
+      </a>
+      <div class="d-flex align-items-center gap-2 mb-2 flex-wrap">
+        <span class="badge-pill-sm"><i class="fa-solid fa-signal"></i> {{ course.skill_level }}</span>
+        <span class="badge-pill-sm"><i class="fa-regular fa-calendar"></i> {{ course.duration_days }} Days Program</span>
+        <span class="badge-pill-sm"><i class="fa-regular fa-clock"></i> {{ course.daily_minutes }} min / day</span>
+        <span class="badge-pill-sm"><i class="fa-solid fa-language"></i> {{ course.language }}</span>
+      </div>
+      <h1 class="course-header-title">{{ course.title }}</h1>
+      <p class="course-header-desc">{{ course.description }}</p>
+      
+      <div class="instructor-tag">
+        <span class="ai-avatar-sm"><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+        <span>Course Architecture by <strong>CourseMind AI Studio</strong> &bull; Verified Curriculum</span>
+      </div>
+    </div>
+    <div class="col-lg-4 col-md-12 mt-4 mt-lg-0 text-lg-end">
+      <div class="overview-cta-box">
+        <div class="progress-info-pill mb-3">
+          <strong>{{ progress.completed_count }} of {{ progress.total_count }} lessons completed ({{ progress.percent }}%)</strong>
+          <div class="progress-bar-track mt-2">
+            <div class="progress-bar-fill" style="width: {{ progress.percent }}%;"></div>
+          </div>
+        </div>
+        {% if first_lesson_id %}
+          <a class="btn-primary w-100 text-center py-3 mb-2" href="{{ url_for('lesson_page', lesson_id=first_lesson_id) }}">
+            {% if progress.percent > 0 %}Resume Learning{% else %}Start Course{% endif %} <i class="fa-solid fa-arrow-right"></i>
+          </a>
+        {% endif %}
+        <a class="btn-outline w-100 text-center mb-2" href="{{ url_for('roadmap', course_id=course.id) }}">
+          <i class="fa-solid fa-route"></i> View Visual Roadmap
+        </a>
+        <button class="btn-danger-soft w-100" id="deleteCourseBtn">
+          <i class="fa-solid fa-trash-can"></i> Delete Course
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="row g-4 mt-1">
+  <!-- LEFT COLUMN: WHAT YOU'LL LEARN, PREREQUISITES, AND SYLLABUS -->
+  <div class="col-lg-8 col-md-12">
+    <!-- OUTCOMES & PREREQUISITES -->
+    <div class="panel-card mb-4">
+      <h2><i class="fa-solid fa-bullseye accent-icon"></i> Learning Outcomes</h2>
+      <ul class="check-list mt-3">
+        {% for obj in course.objectives %}
+          <li><i class="fa-solid fa-circle-check text-success"></i> <span>{{ obj }}</span></li>
+        {% endfor %}
+      </ul>
+
+      {% if course.prerequisites %}
+        <h3 class="mt-4"><i class="fa-solid fa-list-check accent-icon"></i> Prerequisites & Requirements</h3>
+        <ul class="check-list mt-2">
+          {% for req in course.prerequisites %}
+            <li><i class="fa-solid fa-check text-info"></i> <span>{{ req }}</span></li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+    </div>
+
+    <!-- CURRICULUM SYLLABUS -->
+    <div class="panel-card">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2><i class="fa-solid fa-book-open accent-icon"></i> Course Curriculum</h2>
+        <span class="text-muted-sm">{{ course.modules|length }} Modules &bull; {{ progress.total_count }} Lessons</span>
+      </div>
+
+      <div class="accordion-syllabus">
+        {% for m in course.modules %}
+          <details class="syllabus-module panel-card mb-3" {% if loop.first %}open{% endif %}>
+            <summary class="syllabus-summary">
+              <div class="module-number-badge">{{ loop.index }}</div>
+              <div class="module-meta-info">
+                <h3>{{ m.title }}</h3>
+                <span class="text-muted-sm">{{ m.lessons|length }} Lessons &bull; ~{{ (m.duration_minutes / 60)|round(1) }} hours &bull; Checkpoint Quiz</span>
+              </div>
+              <i class="fa-solid fa-chevron-down ms-auto toggle-caret"></i>
+            </summary>
+            <div class="syllabus-body mt-3">
+              <p class="module-desc">{{ m.description }}</p>
+              <div class="lesson-items-list">
+                {% for l in m.lessons %}
+                  <a href="{{ url_for('lesson_page', lesson_id=l.id) }}" class="syllabus-lesson-row">
+                    <span class="lesson-play-icon">
+                      {% if l.id in progress.completed_ids %}
+                        <i class="fa-solid fa-circle-check text-success"></i>
+                      {% else %}
+                        <i class="fa-regular fa-circle-play text-purple"></i>
+                      {% endif %}
+                    </span>
+                    <span class="lesson-row-title">{{ l.title }}</span>
+                    {% if l.video and l.video.video_id %}
+                      <span class="badge-video"><i class="fa-solid fa-video"></i> Video Tutorial</span>
+                    {% endif %}
+                    <i class="fa-solid fa-arrow-right ms-auto"></i>
+                  </a>
+                {% endfor %}
+
+                {% if m.assessment %}
+                  <a href="{{ url_for('assessment_page', assessment_id=m.assessment.id) }}" class="syllabus-quiz-row">
+                    <i class="fa-solid fa-list-check text-warning"></i>
+                    <span><strong>{{ m.title }} Checkpoint</strong> (Graded Assessment)</span>
+                    <i class="fa-solid fa-arrow-right ms-auto"></i>
+                  </a>
+                {% endif %}
+              </div>
+            </div>
+          </details>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- RIGHT COLUMN: CAPSTONE & CERTIFICATE PREVIEW -->
+  <div class="col-lg-4 col-md-12">
+    <!-- CAPSTONE PROJECT CARD -->
+    {% if course.capstone_project and course.capstone_project.title %}
+      <div class="panel-card mb-4 capstone-preview-card">
+        <div class="capstone-icon"><i class="fa-solid fa-award"></i></div>
+        <h3>Capstone Project</h3>
+        <h4>{{ course.capstone_project.title }}</h4>
+        <p>{{ course.capstone_project.description|truncate(160) }}</p>
+        <div class="tasks-mini mt-2">
+          <strong>Key Deliverables:</strong>
+          <ul class="mt-1">
+            {% for t in course.capstone_project.tasks[:3] %}
+              <li><small>{{ t }}</small></li>
+            {% endfor %}
+          </ul>
+        </div>
+      </div>
+    {% endif %}
+
+    <!-- COURSE COMPLETION CARD -->
+    <div class="panel-card text-center">
+      <div class="cert-ribbon"><i class="fa-solid fa-graduation-cap"></i></div>
+      <h3>Course Completion</h3>
+      <p class="small text-muted">Complete all lessons and pass every checkpoint assessment to finish the specialization and capstone project.</p>
+      <a href="{{ url_for('course_completion', course_id=course.id) }}" class="btn-outline w-100">
+        Check Completion Status
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('deleteCourseBtn')?.addEventListener('click', async () => {
+  if (!confirm('Are you sure you want to delete this course and all associated progress? This cannot be undone.')) return;
+  const csrf = document.querySelector('meta[name="csrf-token"]').content;
+  try {
+    const res = await fetch('/api/courses/{{ course.id }}', {
+      method: 'DELETE',
+      headers: { 'X-CSRFToken': csrf }
+    });
+    if (res.ok) {
+      window.location.href = '{{ url_for("my_courses") }}';
+    } else {
+      alert('Could not delete course.');
+    }
+  } catch (e) {
+    alert('Network error while deleting course.');
+  }
+});
+</script>
+{% endblock %}

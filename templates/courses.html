@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block title %}My Courses — CourseMind AI{% endblock %}
+{% block page_name %}My Courses{% endblock %}
+
+{% block content %}
+<div class="page-title-row mb-4">
+  <div>
+    <div class="eyebrow text-purple">ACADEMIC PORTFOLIO</div>
+    <h1>My Enrolled Specializations</h1>
+    <p class="text-muted mb-0">Track, resume, and manage your AI-generated curriculums and learning milestones.</p>
+  </div>
+  <a class="btn-primary" href="{{ url_for('chat') }}">
+    <i class="fa-solid fa-wand-magic-sparkles"></i> Create New Course
+  </a>
+</div>
+
+{% if courses %}
+  <div class="panel-card mb-4 p-3">
+    <div class="row g-2 align-items-center">
+      <div class="col-md-8">
+        <div class="input-icon-wrap">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" id="courseFilterInput" class="form-control-custom" placeholder="Filter by title, skill level, or topic...">
+        </div>
+      </div>
+      <div class="col-md-4 text-md-end text-muted small">
+        Showing <span id="courseCount">{{ courses|length }}</span> total specializations
+      </div>
+    </div>
+  </div>
+
+  <div class="course-grid" id="courseCardsGrid">
+    {% for c in courses %}
+      {% set prog = c.get_progress_data(current_user.id) %}
+      <div class="course-card panel-card" data-title="{{ c.title|lower }}" data-topic="{{ c.topic|lower }}" data-level="{{ c.skill_level|lower }}">
+        <div class="course-card-top cover-{{ (loop.index % 4) + 1 }}">
+          <div class="card-badges">
+            <span class="level-badge">{{ c.skill_level }}</span>
+            <span class="duration-badge"><i class="fa-regular fa-clock"></i> {{ c.duration_days }}d</span>
+          </div>
+          <div class="card-icon-art">
+            <i class="fa-solid {{ 'fa-code' if 'python' in c.topic.lower() else ('fa-brain' if 'machine' in c.topic.lower() else ('fa-database' if 'sql' in c.topic.lower() else 'fa-laptop-code')) }}"></i>
+          </div>
+        </div>
+        <div class="course-card-body">
+          <h3><a href="{{ url_for('course_preview', course_id=c.id) }}">{{ c.title }}</a></h3>
+          <p>{{ c.description|truncate(120) }}</p>
+          <div class="course-stats-mini">
+            <span><i class="fa-solid fa-layer-group"></i> {{ c.modules|length }} Modules</span>
+            <span><i class="fa-solid fa-check-circle"></i> {{ prog.percent }}% Complete</span>
+          </div>
+          <div class="progress-bar-track mt-2">
+            <div class="progress-bar-fill" style="width: {{ prog.percent }}%;"></div>
+          </div>
+        </div>
+        <div class="course-card-footer">
+          <a href="{{ url_for('course_preview', course_id=c.id) }}" class="btn-outline-sm">Overview</a>
+          {% if c.modules and c.modules[0].lessons %}
+            <a href="{{ url_for('lesson_page', lesson_id=c.modules[0].lessons[0].id) }}" class="btn-primary-sm">
+              {% if prog.percent > 0 %}Resume{% else %}Start{% endif %} <i class="fa-solid fa-play"></i>
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="empty-state panel-card text-center p-5">
+    <div class="empty-icon mb-3"><i class="fa-solid fa-book-open fa-3x text-purple"></i></div>
+    <h3>No courses enrolled yet</h3>
+    <p class="text-muted">Generate a course on any technical topic to begin your personalized learning journey.</p>
+    <a class="btn-primary mt-2" href="{{ url_for('dashboard') }}">
+      <i class="fa-solid fa-wand-magic-sparkles"></i> Generate First Course
+    </a>
+  </div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('courseFilterInput')?.addEventListener('input', (e) => {
+  const query = e.target.value.toLowerCase().trim();
+  const cards = document.querySelectorAll('#courseCardsGrid .course-card');
+  let visible = 0;
+  cards.forEach(card => {
+    const text = (card.dataset.title + ' ' + card.dataset.topic + ' ' + card.dataset.level).toLowerCase();
+    const match = text.includes(query);
+    card.style.display = match ? 'flex' : 'none';
+    if (match) visible++;
+  });
+  const countEl = document.getElementById('courseCount');
+  if (countEl) countEl.textContent = visible;
+});
+</script>
+{% endblock %}

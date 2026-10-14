@@ -1,0 +1,811 @@
+{% extends 'base.html' %}
+{% block title %}{{ lesson.title }} — CourseMind AI{% endblock %}
+{% block page_name %}Learning Workspace{% endblock %}
+
+{% block content %}
+<div class="workspace-layout">
+  <!-- 1. LEFT SYLLABUS SIDEBAR -->
+  <aside class="workspace-sidebar panel-card" id="workspaceNav">
+    <div class="sidebar-header-row">
+      <a class="back-link-sm" href="{{ url_for('course_preview', course_id=course.id) }}">
+        <i class="fa-solid fa-arrow-left"></i> Course Overview
+      </a>
+      <span class="course-prog-text">{{ progress.percent }}% Done</span>
+    </div>
+    
+    <div class="progress-bar-track mb-3">
+      <div class="progress-bar-fill" id="sidebarProgressFill" style="width: {{ progress.percent }}%;"></div>
+    </div>
+
+    <h4 class="sidebar-syllabus-title">Curriculum</h4>
+    <div class="workspace-module-list">
+      {% for m in modules %}
+        <div class="module-group">
+          <div class="module-group-title">
+            <span>{{ loop.index }}. {{ m.title }}</span>
+          </div>
+          <div class="module-group-lessons">
+            {% for l in m.lessons %}
+              <a href="{{ url_for('lesson_page', lesson_id=l.id) }}" class="lesson-nav-item {{ 'active-lesson' if l.id == lesson.id else '' }}" id="navLesson{{ l.id }}">
+                <span class="nav-status-icon">
+                  {% if l.id in progress.completed_ids %}
+                    <i class="fa-solid fa-circle-check text-success"></i>
+                  {% else %}
+                    <i class="fa-regular fa-circle text-muted"></i>
+                  {% endif %}
+                </span>
+                <span class="nav-lesson-name">{{ l.title }}</span>
+              </a>
+            {% endfor %}
+            {% if m.assessment %}
+              <a href="{{ url_for('assessment_page', assessment_id=m.assessment.id) }}" class="quiz-nav-item">
+                <i class="fa-solid fa-list-check text-warning"></i>
+                <span>Module Quiz</span>
+              </a>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </aside>
+
+  <!-- 2. MAIN LESSON INSTRUCTIONAL WORKSPACE -->
+  <main class="workspace-main">
+    <div class="panel-card mb-4">
+      <!-- BREADCRUMBS & LESSON HEADER -->
+      <div class="lesson-breadcrumb">
+        <span>{{ course.title }}</span> &bull; 
+        <span>{{ lesson.module.title }}</span> &bull; 
+        <strong class="text-white">{{ lesson.title }}</strong>
+      </div>
+      
+      <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mt-2 mb-3">
+        <h1 class="lesson-main-title">{{ lesson.title }}</h1>
+        <div class="d-flex align-items-center gap-2">
+          <button id="toggleTutorMobile" class="btn-outline-sm d-lg-none">
+            <i class="fa-solid fa-wand-magic-sparkles"></i> AI Tutor
+          </button>
+        </div>
+      </div>
+
+      <!-- VIDEO TUTORIAL SECTION -->
+      <section class="lesson-video-section mb-4" id="lessonVideoSection">
+        {% if video and video.video_id %}
+          <div class="video-container-card mb-3" id="mainVideoCard">
+            <div class="video-ratio-box">
+              <iframe 
+                id="activeVideoIframe"
+                src="{{ video.embed_url }}" 
+                title="{{ video.title }}" 
+                frameborder="0" 
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" 
+                allowfullscreen>
+              </iframe>
+            </div>
+            <div class="video-meta-bar">
+              <div class="video-meta-info">
+                <strong id="activeVideoTitle"><i class="fa-solid fa-video text-purple"></i> {{ video.title }}</strong>
+                <div class="video-sub-meta mt-1">
+                  <span class="text-muted-sm" id="activeVideoChannel"><i class="fa-solid fa-user text-muted"></i> {{ video.channel }}</span>
+                  <span class="badge-video ms-2" id="activeVideoIdBadge"><i class="fa-brands fa-youtube text-danger"></i> ID: {{ video.video_id }}</span>
+                  {% if video.source == 'youtube_api' %}
+                    <span class="badge-source ms-2 text-success"><i class="fa-solid fa-check-circle"></i> YouTube API v3</span>
+                  {% else %}
+                    <span class="badge-source ms-2 text-info"><i class="fa-solid fa-shield"></i> Verified Resource</span>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="video-meta-actions">
+                <a href="{{ video.youtube_url }}" target="_blank" rel="noopener noreferrer" class="btn-outline-sm" id="activeVideoDirectLink">
+                  Watch on YouTube <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                </a>
+              </div>
+            </div>
+            <div class="video-sub-note px-3 py-2">
+              <small class="text-muted">
+                <i class="fa-solid fa-circle-info text-info"></i> If playback is restricted or embedding is disabled by the creator, 
+                <a href="{{ video.youtube_url }}" target="_blank" rel="noopener noreferrer" class="text-purple fw-semibold" id="activeVideoFallbackLink">open directly on YouTube</a>.
+              </small>
+            </div>
+          </div>
+        {% elif video and video.youtube_url %}
+          <div class="video-container-card mb-3 p-3 text-center">
+            <a href="{{ video.youtube_url }}" target="_blank" rel="noopener noreferrer" class="btn-outline-sm" id="activeVideoDirectLink">
+              Watch on YouTube <i class="fa-solid fa-arrow-up-right-from-square"></i>
+            </a>
+          </div>
+        {% endif %}
+
+        <!-- RELATED VIDEOS DRAWER TOGGLE -->
+        <div class="d-flex justify-content-between align-items-center mb-2">
+          <button class="btn-outline-sm" id="loadMoreVideosBtn" type="button">
+            <i class="fa-brands fa-youtube text-danger"></i> Related Videos from YouTube Data API <i class="fa-solid fa-chevron-down ms-1" id="videoDrawerChevron"></i>
+          </button>
+          <span class="text-muted-sm" id="videoStatusNote"></span>
+        </div>
+        <div id="moreVideosContainer" class="more-videos-grid d-none">
+          <div class="text-center py-3 text-muted" id="moreVideosLoading">
+            <i class="fa-solid fa-circle-notch fa-spin text-purple"></i> Querying YouTube Data API v3...
+          </div>
+          <div class="video-recommendations-list" id="videoRecommendationsList"></div>
+        </div>
+      </section>
+
+      <!-- LEARNING OBJECTIVES -->
+      <div class="lesson-objectives-box mb-4">
+        <h3><i class="fa-solid fa-bullseye accent-icon"></i> Learning Objectives</h3>
+        <p class="mb-0">By the end of this lesson, you will be able to explain the core mechanics of <strong>{{ lesson.title }}</strong>, apply syntax patterns, and solve practical exercises.</p>
+      </div>
+
+      <!-- COMPREHENSIVE EXPLANATION -->
+      <section class="lesson-text-body mb-4">
+        <h3><i class="fa-solid fa-book-open accent-icon"></i> In-Depth Concepts & Explanation</h3>
+        <div class="explanation-paragraphs">
+          {{ lesson.explanation|replace('\n\n', '<br><br>')|safe }}
+        </div>
+      </section>
+
+      <!-- KEY CONCEPTS BULLETS -->
+      {% if lesson.concepts %}
+        <section class="lesson-section mb-4">
+          <h3><i class="fa-solid fa-key accent-icon"></i> Core Concepts & Architecture</h3>
+          <ul class="concept-tags-list">
+            {% for c in lesson.concepts %}
+              <li><i class="fa-solid fa-check text-info"></i> {{ c }}</li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+
+      <!-- WORKED EXAMPLES -->
+      {% if lesson.examples %}
+        <section class="lesson-section mb-4">
+          <h3><i class="fa-solid fa-code accent-icon"></i> Worked Code Examples</h3>
+          {% for ex in lesson.examples %}
+            <div class="worked-example-block mb-3">
+              <pre><code>{{ ex }}</code></pre>
+            </div>
+          {% endfor %}
+        </section>
+      {% endif %}
+
+      <!-- INTERACTIVE CODE RUNNER & MONACO EDITOR -->
+      {% if lesson.coding_exercise and lesson.coding_exercise.starter_code %}
+        <section class="code-editor-section mb-4" id="codingExerciseBlock">
+          <div class="editor-header">
+            <div>
+              <h3><i class="fa-solid fa-laptop-code accent-icon"></i> Hands-On Interactive Code Challenge</h3>
+              <p class="small text-muted mb-0">{{ lesson.coding_exercise.instructions }}</p>
+            </div>
+            <div class="editor-controls">
+              <button class="btn-outline-sm" id="resetCodeBtn" title="Reset to Starter Code">
+                <i class="fa-solid fa-rotate-left"></i> Reset
+              </button>
+              <button class="btn-primary-sm" id="runCodeBtn">
+                <i class="fa-solid fa-play"></i> Run Code
+              </button>
+            </div>
+          </div>
+
+          <!-- Monaco Editor Frame -->
+          <div id="monacoEditorContainer" class="monaco-box"></div>
+
+          <!-- Output Panel & Test Cases -->
+          <div class="terminal-panel mt-2">
+            <div class="terminal-tabs">
+              <button class="terminal-tab active" id="tabConsole">Console Output</button>
+              <button class="terminal-tab" id="tabTests">Test Cases ({{ lesson.coding_exercise.test_cases|length }})</button>
+            </div>
+            <div class="terminal-body" id="consoleOutput">
+              <span class="terminal-placeholder">Click 'Run Code' to execute your code in an isolated browser sandbox...</span>
+            </div>
+            <div class="terminal-body d-none" id="testCasesOutput">
+              {% for tc in lesson.coding_exercise.test_cases %}
+                <div class="test-case-row">
+                  <div><strong>Input:</strong> <code>{{ tc.input }}</code></div>
+                  <div><strong>Expected:</strong> <code>{{ tc.expected }}</code></div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        </section>
+      {% endif %}
+
+      <!-- COMMON ERRORS & DEBUGGING -->
+      <section class="lesson-section mb-4">
+        <h3><i class="fa-solid fa-triangle-exclamation accent-icon text-warning"></i> Common Errors & Debugging Advice</h3>
+        <div class="tips-box">
+          <ul>
+            <li><strong>Syntax & Indentation:</strong> Verify colon placement and consistent 4-space indentation blocks.</li>
+            <li><strong>Type Mismatches:</strong> Check whether variables contain numeric types or string representations before performing math.</li>
+            <li><strong>Boundary Conditions:</strong> Test edge cases including zero, empty lists/strings, and negative indices.</li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- GUIDED EXERCISES & TAKEAWAYS -->
+      {% if lesson.exercises %}
+        <section class="lesson-section mb-4">
+          <h3><i class="fa-solid fa-pencil accent-icon"></i> Practice Exercises</h3>
+          <ol class="exercise-ol">
+            {% for ex in lesson.exercises %}
+              <li>{{ ex }}</li>
+            {% endfor %}
+          </ol>
+        </section>
+      {% endif %}
+
+      {% if lesson.takeaways %}
+        <section class="lesson-section mb-4">
+          <h3><i class="fa-solid fa-lightbulb accent-icon text-warning"></i> Key Takeaways</h3>
+          <ul class="takeaway-ul">
+            {% for t in lesson.takeaways %}
+              <li><i class="fa-solid fa-circle-check text-purple"></i> {{ t }}</li>
+            {% endfor %}
+          </ul>
+        </section>
+      {% endif %}
+
+      <!-- LESSON ACTIONS BAR -->
+      <div class="lesson-bottom-nav">
+        <button class="btn-outline" id="prevLessonBtn" disabled>
+          <i class="fa-solid fa-arrow-left"></i> Previous Lesson
+        </button>
+
+        <button class="btn-success-soft" id="markCompleteBtn">
+          {% if lesson.is_completed(current_user.id) %}
+            <i class="fa-solid fa-circle-check text-success"></i> Completed
+          {% else %}
+            Mark as Complete <i class="fa-solid fa-check"></i>
+          {% endif %}
+        </button>
+
+        <button class="btn-primary" id="nextLessonBtn">
+          Next Lesson <i class="fa-solid fa-arrow-right"></i>
+        </button>
+      </div>
+      <div id="completeNotice" class="text-center mt-2 small text-success"></div>
+    </div>
+  </main>
+
+  <!-- 3. RIGHT AI TUTOR SIDEBAR -->
+  <aside class="workspace-tutor panel-card" id="workspaceTutor">
+    <div class="tutor-header">
+      <div class="ai-avatar-sm"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+      <div>
+        <h3>CourseMind AI Tutor</h3>
+        <span class="text-muted-sm"><i class="fa-solid fa-circle text-success" style="font-size:7px;"></i> Gemini Course-Aware</span>
+      </div>
+      <div class="ms-auto d-flex gap-1 align-items-center">
+        <button class="icon-btn-sm" id="clearTutorHistoryBtn" title="Clear tutor chat history for this course"><i class="fa-solid fa-trash-can"></i></button>
+        <button class="icon-btn-sm d-lg-none" id="closeTutorBtn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+    </div>
+
+    <div class="tutor-chips-bar">
+      <button class="tutor-chip" data-mode="explain-simply">Explain Simply</button>
+      <button class="tutor-chip" data-mode="step-by-step">Step-by-Step</button>
+      <button class="tutor-chip" data-mode="debug-code">Debug My Code</button>
+      <button class="tutor-chip" data-mode="give-example">Give Example</button>
+    </div>
+
+    <div class="tutor-chat-messages" id="tutorMessages">
+      <div class="tutor-msg assistant">
+        <p>Hello! I am your AI course tutor for <strong>{{ lesson.title }}</strong>. Ask me anything about this concept, request a step-by-step breakdown, or click <em>Debug My Code</em> to analyze your editor solution!</p>
+      </div>
+    </div>
+
+    <form id="tutorForm" class="tutor-input-box">
+      <input type="text" id="tutorInput" placeholder="Ask a question about this lesson..." required autocomplete="off">
+      <button type="submit" id="tutorSendBtn" class="tutor-send-btn" title="Send Question">
+        <i class="fa-solid fa-arrow-up"></i>
+      </button>
+    </form>
+  </aside>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Monaco Editor Loader -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs/loader.js"></script>
+<!-- Pyodide CPython WebAssembly for Client Sandbox -->
+<script src="https://cdn.jsdelivr.net/pyodide/v0.25.0/full/pyodide.js"></script>
+
+<script>
+window.lessonData = {
+  lessonId: {{ lesson.id }},
+  courseId: {{ course.id }},
+  csrfToken: document.querySelector('meta[name="csrf-token"]').content,
+  starterCode: {{ lesson.coding_exercise.starter_code|tojson if lesson.coding_exercise else "''"|safe }},
+  allLessons: [{% for m in modules %}{% for l in m.lessons %}{{ l.id }},{% endfor %}{% endfor %}]
+};
+
+let editorInstance = null;
+let pyodideInstance = null;
+let pyodideLoading = false;
+
+// Initialize Monaco Editor
+require.config({ paths: { vs: 'https://cdnjs.cloudflare.com/ajax/libs/monaco-editor/0.45.0/min/vs' } });
+require(['vs/editor/editor.main'], function () {
+  const container = document.getElementById('monacoEditorContainer');
+  if (container) {
+    editorInstance = monaco.editor.create(container, {
+      value: window.lessonData.starterCode || '# Write your solution here\n',
+      language: 'python',
+      theme: 'vs-dark',
+      automaticLayout: true,
+      minimap: { enabled: false },
+      fontSize: 14,
+      fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+      lineNumbers: 'on',
+      scrollBeyondLastLine: false
+    });
+  }
+});
+
+// Load Pyodide asynchronously
+async function getPyodide() {
+  if (pyodideInstance) return pyodideInstance;
+  if (pyodideLoading) {
+    while (pyodideLoading) await new Promise(r => setTimeout(r, 100));
+    return pyodideInstance;
+  }
+  pyodideLoading = true;
+  const consoleOut = document.getElementById('consoleOutput');
+  consoleOut.innerHTML = '<span class="text-info"><i class="fa-solid fa-spinner fa-spin"></i> Initializing WebAssembly Python Sandbox...</span>';
+  try {
+    pyodideInstance = await loadPyodide();
+    consoleOut.innerHTML = '<span class="text-success"><i class="fa-solid fa-check"></i> Python 3.11 Runtime Initialized! Ready to run.</span>';
+  } catch (err) {
+    consoleOut.innerHTML = `<span class="text-danger">Pyodide Sandbox Error: ${err.message}</span>`;
+  } finally {
+    pyodideLoading = false;
+  }
+  return pyodideInstance;
+}
+
+// Reset code button
+document.getElementById('resetCodeBtn')?.addEventListener('click', () => {
+  if (editorInstance && window.lessonData.starterCode) {
+    editorInstance.setValue(window.lessonData.starterCode);
+  }
+});
+
+// Run Code in Pyodide WebAssembly Sandbox
+document.getElementById('runCodeBtn')?.addEventListener('click', async () => {
+  if (!editorInstance) return;
+  const code = editorInstance.getValue();
+  const consoleOut = document.getElementById('consoleOutput');
+  consoleOut.innerHTML = '<span class="text-warning"><i class="fa-solid fa-circle-notch fa-spin"></i> Executing code in sandbox...</span>';
+
+  const py = await getPyodide();
+  if (!py) return;
+
+  try {
+    // Capture stdout and stderr
+    py.runPython(`
+import sys, io
+sys.stdout = io.StringIO()
+sys.stderr = io.StringIO()
+    `);
+
+    const t0 = performance.now();
+    py.runPython(code);
+    const t1 = performance.now();
+
+    const stdout = py.runPython("sys.stdout.getvalue()");
+    const stderr = py.runPython("sys.stderr.getvalue()");
+    const elapsed = Math.round(t1 - t0);
+
+    let outputHtml = '';
+    if (stdout) {
+      outputHtml += `<div class="text-white">${escapeHtml(stdout).replace(/\n/g, '<br>')}</div>`;
+    }
+    if (stderr) {
+      outputHtml += `<div class="text-danger">${escapeHtml(stderr).replace(/\n/g, '<br>')}</div>`;
+    }
+    if (!stdout && !stderr) {
+      outputHtml = '<span class="text-muted">Code executed successfully with no output printed.</span>';
+    }
+    outputHtml += `<div class="terminal-footer mt-2"><small class="text-muted"><i class="fa-solid fa-bolt text-warning"></i> Finished in ${elapsed} ms</small></div>`;
+
+    consoleOut.innerHTML = outputHtml;
+  } catch (err) {
+    consoleOut.innerHTML = `<div class="text-danger"><strong>Execution Error:</strong><br>${escapeHtml(err.message).replace(/\n/g, '<br>')}</div>`;
+  }
+});
+
+// Terminal tabs
+document.getElementById('tabConsole')?.addEventListener('click', () => {
+  document.getElementById('tabConsole').classList.add('active');
+  document.getElementById('tabTests').classList.remove('active');
+  document.getElementById('consoleOutput').classList.remove('d-none');
+  document.getElementById('testCasesOutput').classList.add('d-none');
+});
+document.getElementById('tabTests')?.addEventListener('click', () => {
+  document.getElementById('tabTests').classList.add('active');
+  document.getElementById('tabConsole').classList.remove('active');
+  document.getElementById('testCasesOutput').classList.remove('d-none');
+  document.getElementById('consoleOutput').classList.add('d-none');
+});
+
+// Mark as complete handler
+document.getElementById('markCompleteBtn')?.addEventListener('click', async () => {
+  const btn = document.getElementById('markCompleteBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
+
+  try {
+    const res = await fetch(`/api/lessons/${window.lessonData.lessonId}/complete`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': window.lessonData.csrfToken
+      }
+    });
+    const d = await res.json();
+    if (res.ok) {
+      btn.className = 'btn-success-soft';
+      btn.innerHTML = '<i class="fa-solid fa-circle-check text-success"></i> Completed';
+      document.getElementById('completeNotice').textContent = 'Progress saved! Next lesson unlocked.';
+      
+      // Update sidebar nav icon
+      const navItem = document.getElementById(`navLesson${window.lessonData.lessonId}`);
+      if (navItem) {
+        const icon = navItem.querySelector('.nav-status-icon');
+        if (icon) icon.innerHTML = '<i class="fa-solid fa-circle-check text-success"></i>';
+      }
+      if (d.progress) {
+        document.getElementById('sidebarProgressFill').style.width = d.progress.percent + '%';
+      }
+    }
+  } catch (e) {
+    btn.innerHTML = 'Retry Mark Complete';
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+// Navigation: Next / Prev
+const all = window.lessonData.allLessons;
+const currIdx = all.indexOf(window.lessonData.lessonId);
+const prevBtn = document.getElementById('prevLessonBtn');
+const nextBtn = document.getElementById('nextLessonBtn');
+
+if (currIdx > 0) {
+  prevBtn.disabled = false;
+  prevBtn.addEventListener('click', () => {
+    window.location.href = `/lessons/${all[currIdx - 1]}`;
+  });
+}
+if (currIdx < all.length - 1) {
+  nextBtn.addEventListener('click', () => {
+    window.location.href = `/lessons/${all[currIdx + 1]}`;
+  });
+} else {
+  nextBtn.innerHTML = 'Complete Course <i class="fa-solid fa-trophy"></i>';
+  nextBtn.addEventListener('click', () => {
+    window.location.href = `/courses/${window.lessonData.courseId}/completion`;
+  });
+}
+
+// --- YOUTUBE DATA API VIDEO RECOMMENDATIONS DRAWER ---
+let videosLoaded = false;
+const loadMoreBtn = document.getElementById('loadMoreVideosBtn');
+const moreVideosContainer = document.getElementById('moreVideosContainer');
+const videoRecommendationsList = document.getElementById('videoRecommendationsList');
+const moreVideosLoading = document.getElementById('moreVideosLoading');
+const chevron = document.getElementById('videoDrawerChevron');
+const videoStatusNote = document.getElementById('videoStatusNote');
+
+loadMoreBtn?.addEventListener('click', async () => {
+  const isHidden = moreVideosContainer.classList.contains('d-none');
+  if (isHidden) {
+    moreVideosContainer.classList.remove('d-none');
+    chevron?.classList.replace('fa-chevron-down', 'fa-chevron-up');
+    if (!videosLoaded) {
+      await fetchRelatedVideos();
+    }
+  } else {
+    moreVideosContainer.classList.add('d-none');
+    chevron?.classList.replace('fa-chevron-up', 'fa-chevron-down');
+  }
+});
+
+async function fetchRelatedVideos() {
+  moreVideosLoading.classList.remove('d-none');
+  videoRecommendationsList.innerHTML = '';
+  try {
+    const res = await fetch(`/api/lessons/${window.lessonData.lessonId}/videos`);
+    const data = await res.json();
+    moreVideosLoading.classList.add('d-none');
+    videosLoaded = true;
+
+    if (!data.videos || data.videos.length === 0) {
+      videoStatusNote.textContent = '';
+      videoRecommendationsList.innerHTML = `
+        <div class="text-muted small py-3 col-12 text-center">
+          No additional related videos available for this lesson.
+        </div>
+      `;
+      return;
+    }
+
+    videoStatusNote.textContent = `${data.videos.length} videos from ${data.source === 'youtube_api' ? 'YouTube API v3' : 'Educational Registry'}`;
+    videoRecommendationsList.innerHTML = data.videos.map(v => `
+      <div class="video-rec-card" data-vid="${escapeHtml(v.video_id)}" data-embed="${escapeHtml(v.embed_url)}" data-url="${escapeHtml(v.youtube_url)}" data-title="${escapeHtml(v.title)}" data-channel="${escapeHtml(v.channel)}">
+        <img class="video-rec-thumb" src="${escapeHtml(v.thumbnail)}" alt="${escapeHtml(v.title)}" loading="lazy" />
+        <div class="video-rec-body">
+          <div class="video-rec-title" title="${escapeHtml(v.title)}">${escapeHtml(v.title)}</div>
+          <div class="video-rec-channel"><i class="fa-solid fa-user"></i> ${escapeHtml(v.channel)}</div>
+          <div class="d-flex justify-content-between align-items-center mt-2 pt-1 border-top border-secondary">
+            <span class="badge-video"><i class="fa-brands fa-youtube text-danger"></i> ID: ${escapeHtml(v.video_id)}</span>
+            <span class="text-purple small fw-semibold"><i class="fa-solid fa-play"></i> Switch Player</span>
+          </div>
+        </div>
+      </div>
+    `).join('');
+
+    // Attach click listeners to cards to switch player
+    videoRecommendationsList.querySelectorAll('.video-rec-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const vid = card.dataset.vid;
+        const embed = card.dataset.embed;
+        const url = card.dataset.url;
+        const title = card.dataset.title;
+        const channel = card.dataset.channel;
+
+        const iframe = document.getElementById('activeVideoIframe');
+        const titleEl = document.getElementById('activeVideoTitle');
+        const channelEl = document.getElementById('activeVideoChannel');
+        const idBadgeEl = document.getElementById('activeVideoIdBadge');
+        const directLinkEl = document.getElementById('activeVideoDirectLink');
+        const fallbackLinkEl = document.getElementById('activeVideoFallbackLink');
+
+        if (iframe) iframe.src = embed;
+        if (titleEl) titleEl.innerHTML = `<i class="fa-solid fa-video text-purple"></i> ${title}`;
+        if (channelEl) channelEl.innerHTML = `<i class="fa-solid fa-user text-muted"></i> ${channel}`;
+        if (idBadgeEl) idBadgeEl.innerHTML = `<i class="fa-brands fa-youtube text-danger"></i> ID: ${vid}`;
+        if (directLinkEl) directLinkEl.href = url;
+        if (fallbackLinkEl) fallbackLinkEl.href = url;
+
+        videoRecommendationsList.querySelectorAll('.video-rec-card').forEach(c => c.classList.remove('active'));
+        card.classList.add('active');
+
+        // Scroll smoothly to player
+        document.getElementById('mainVideoCard')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      });
+    });
+
+  } catch (err) {
+    moreVideosLoading.classList.add('d-none');
+    videoStatusNote.textContent = '';
+    videoRecommendationsList.innerHTML = `
+      <div class="text-muted small py-3 col-12 text-center">
+        Related videos are currently unavailable.
+      </div>
+    `;
+  }
+}
+
+// --- COURSE-AWARE GEMINI AI TUTOR ---
+const tutorInput = document.getElementById('tutorInput');
+const tutorSendBtn = document.getElementById('tutorSendBtn');
+const messagesBox = document.getElementById('tutorMessages');
+
+// Load conversation history for this course
+async function loadTutorHistory() {
+  try {
+    const res = await fetch(`/api/lessons/${window.lessonData.lessonId}/tutor/history`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.messages && data.messages.length > 0) {
+      messagesBox.innerHTML = '';
+      data.messages.forEach(msg => {
+        const div = document.createElement('div');
+        div.className = `tutor-msg ${msg.role === 'user' ? 'user' : 'assistant'}`;
+        if (msg.role === 'user') {
+          div.innerHTML = `<p>${escapeHtml(msg.content)}</p>`;
+        } else {
+          div.innerHTML = formatMarkdown(msg.content);
+        }
+        messagesBox.appendChild(div);
+      });
+      messagesBox.scrollTop = messagesBox.scrollHeight;
+      attachCopyCodeListeners();
+    }
+  } catch (err) {
+    console.warn('Could not load tutor history:', err);
+  }
+}
+
+// AI Tutor Chat Integration
+async function askTutor(question, mode = 'answer') {
+  question = (question || '').trim();
+  if (!question) return;
+
+  // Disable inputs while processing
+  if (tutorInput) tutorInput.disabled = true;
+  if (tutorSendBtn) {
+    tutorSendBtn.disabled = true;
+    tutorSendBtn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+  }
+
+  // Render user message
+  const userDiv = document.createElement('div');
+  userDiv.className = 'tutor-msg user';
+  userDiv.innerHTML = `<p>${escapeHtml(question)}</p>`;
+  messagesBox.appendChild(userDiv);
+
+  // Render assistant thinking indicator
+  const botDiv = document.createElement('div');
+  botDiv.className = 'tutor-msg assistant';
+  botDiv.innerHTML = '<p class="mb-0"><i class="fa-solid fa-circle-notch fa-spin text-purple"></i> Consulting CourseMind AI Tutor (Gemini)...</p>';
+  messagesBox.appendChild(botDiv);
+  messagesBox.scrollTop = messagesBox.scrollHeight;
+
+  const codeSnippet = editorInstance ? editorInstance.getValue() : '';
+
+  try {
+    const res = await fetch('/api/ai/tutor', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': window.lessonData.csrfToken
+      },
+      body: JSON.stringify({
+        question: question,
+        mode: mode,
+        lesson_id: window.lessonData.lessonId,
+        course_id: window.lessonData.courseId,
+        code_snippet: codeSnippet
+      })
+    });
+    const d = await res.json();
+    if (!res.ok) {
+      throw new Error(d.error || 'Gemini API tutor request failed');
+    }
+
+    botDiv.innerHTML = formatMarkdown(d.answer);
+    attachCopyCodeListeners();
+  } catch (err) {
+    botDiv.innerHTML = `
+      <div class="tutor-error-box">
+        <p class="mb-1"><i class="fa-solid fa-circle-exclamation text-danger"></i> <strong>Tutor Error:</strong> ${escapeHtml(err.message)}</p>
+        <button type="button" class="tutor-retry-btn">
+          <i class="fa-solid fa-rotate-right"></i> Retry Question
+        </button>
+      </div>
+    `;
+    const retryBtn = botDiv.querySelector('.tutor-retry-btn');
+    retryBtn?.addEventListener('click', () => {
+      botDiv.remove();
+      userDiv.remove();
+      askTutor(question, mode);
+    });
+  } finally {
+    if (tutorInput) {
+      tutorInput.disabled = false;
+      tutorInput.focus();
+    }
+    if (tutorSendBtn) {
+      tutorSendBtn.disabled = false;
+      tutorSendBtn.innerHTML = '<i class="fa-solid fa-arrow-up"></i>';
+    }
+    messagesBox.scrollTop = messagesBox.scrollHeight;
+  }
+}
+
+// Tutor Form Submit
+document.getElementById('tutorForm')?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (!tutorInput) return;
+  const q = tutorInput.value.trim();
+  if (!q) return;
+  tutorInput.value = '';
+  askTutor(q, 'answer');
+});
+
+// Tutor Input Enter Key Handling
+tutorInput?.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    const q = tutorInput.value.trim();
+    if (q) {
+      tutorInput.value = '';
+      askTutor(q, 'answer');
+    }
+  }
+});
+
+// Tutor Mode Chips
+document.querySelectorAll('.tutor-chip').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const mode = btn.dataset.mode;
+    let q = 'Can you explain this lesson simply?';
+    if (mode === 'debug-code') {
+      const code = editorInstance ? editorInstance.getValue().trim() : '';
+      q = code ? 'Please review my code in the editor, check for syntax errors or bugs, and suggest fixes.' : 'Can you explain common bugs and debugging techniques for this lesson?';
+    }
+    if (mode === 'step-by-step') q = 'Can you break down this concept into step-by-step instructions?';
+    if (mode === 'give-example') q = 'Can you give a practical, real-world code example illustrating this lesson?';
+    askTutor(q, mode);
+  });
+});
+
+// Clear Tutor History Button
+document.getElementById('clearTutorHistoryBtn')?.addEventListener('click', async () => {
+  if (!confirm('Clear your AI Tutor conversation history for this course?')) return;
+  try {
+    const res = await fetch(`/api/courses/${window.lessonData.courseId}/tutor/clear`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': window.lessonData.csrfToken
+      }
+    });
+    if (res.ok) {
+      messagesBox.innerHTML = `
+        <div class="tutor-msg assistant">
+          <p>Conversation history cleared. Hello! I am your AI course tutor for <strong>{{ lesson.title }}</strong>. Ask me anything about this course!</p>
+        </div>
+      `;
+    }
+  } catch (err) {
+    console.error('Failed to clear history:', err);
+  }
+});
+
+// Mobile Tutor Toggle
+document.getElementById('toggleTutorMobile')?.addEventListener('click', () => {
+  document.getElementById('workspaceTutor').classList.toggle('open');
+});
+document.getElementById('closeTutorBtn')?.addEventListener('click', () => {
+  document.getElementById('workspaceTutor').classList.remove('open');
+});
+
+function escapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function attachCopyCodeListeners() {
+  document.querySelectorAll('.tutor-code-block').forEach(block => {
+    if (block.querySelector('.tutor-copy-code-btn')) return;
+    const btn = document.createElement('button');
+    btn.className = 'tutor-copy-code-btn';
+    btn.innerHTML = '<i class="fa-regular fa-copy"></i> Copy';
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const codeEl = block.querySelector('code');
+      if (codeEl) {
+        navigator.clipboard.writeText(codeEl.innerText).then(() => {
+          btn.innerHTML = '<i class="fa-solid fa-check text-success"></i> Copied';
+          setTimeout(() => { btn.innerHTML = '<i class="fa-regular fa-copy"></i> Copy'; }, 2000);
+        });
+      }
+    });
+    block.appendChild(btn);
+  });
+}
+
+function formatMarkdown(text) {
+  let html = escapeHtml(text)
+    .replace(/^### (.*$)/gim, '<h4 class="mt-2 mb-1 text-purple">$1</h4>')
+    .replace(/^## (.*$)/gim, '<h3 class="mt-2 mb-1 text-white">$1</h3>')
+    .replace(/^# (.*$)/gim, '<h2 class="mt-2 mb-1 text-white">$1</h2>')
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/```python([\s\S]*?)```/g, '<div class="tutor-code-block"><pre><code>$1</code></pre></div>')
+    .replace(/```([\s\S]*?)```/g, '<div class="tutor-code-block"><pre><code>$1</code></pre></div>')
+    .replace(/`([^`]+)`/g, '<code class="tutor-inline-code">$1</code>')
+    .replace(/^\> (.*$)/gim, '<blockquote class="tutor-quote">$1</blockquote>')
+    .replace(/^\- (.*$)/gim, '<li>$1</li>')
+    .replace(/\n\n/g, '<br><br>')
+    .replace(/\n/g, '<br>');
+  return html;
+}
+
+// Load conversation history on startup
+loadTutorHistory();
+</script>
+{% endblock %}

@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+{% block title %}Course Completion & Capstone — {{ course.title }}{% endblock %}
+{% block page_name %}Course Completion{% endblock %}
+
+{% block content %}
+<div class="completion-container">
+  <a class="back-link mb-3 d-inline-block" href="{{ url_for('course_preview', course_id=course.id) }}">
+    <i class="fa-solid fa-arrow-left"></i> Back to Course Overview
+  </a>
+
+  <!-- COMPLETION STATUS BANNER -->
+  {% if is_eligible %}
+    <div class="completion-hero panel-card text-center py-5 mb-4 border-success">
+      <div class="trophy-icon-box mb-3">
+        <i class="fa-solid fa-trophy fa-4x text-warning"></i>
+      </div>
+      <div class="badge-pill mb-2"><i class="fa-solid fa-star"></i> All Completion Requirements Met</div>
+      <h1 class="display-4 fw-bold">Congratulations, {{ current_user.name }}!</h1>
+      <p class="lead text-muted mx-auto" style="max-width: 650px;">
+        You have successfully completed 100% of lessons and passed all graded assessments for <strong>{{ course.title }}</strong>.
+      </p>
+    </div>
+  {% else %}
+    <div class="completion-hero panel-card py-4 mb-4">
+      <div class="d-flex align-items-center gap-3">
+        <div class="status-gauge-box">
+          <span class="display-5 fw-bold text-purple">{{ progress.percent }}%</span>
+        </div>
+        <div>
+          <h2>Course Completion Status</h2>
+          <p class="text-muted mb-0">
+            Complete all lessons and pass every module checkpoint to finish your specialization and complete your Capstone project.
+          </p>
+        </div>
+      </div>
+    </div>
+  {% endif %}
+
+  <!-- PROGRESS METRICS BREAKDOWN -->
+  <div class="row g-4 mb-4">
+    <div class="col-md-4">
+      <div class="panel-card stat-summary-card">
+        <span class="text-muted-sm">Lessons Progress</span>
+        <h3>{{ progress.completed_count }} / {{ progress.total_count }}</h3>
+        <div class="progress-bar-track mt-2">
+          <div class="progress-bar-fill" style="width: {{ progress.percent }}%;"></div>
+        </div>
+        <small class="text-muted mt-2 d-block">
+          {% if progress.percent == 100 %}<i class="fa-solid fa-check text-success"></i> 100% Lessons Complete{% else %}Keep going to complete all lessons{% endif %}
+        </small>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="panel-card stat-summary-card">
+        <span class="text-muted-sm">Assessments Passed</span>
+        <h3>{{ passed_assessments }} / {{ total_assessments }}</h3>
+        <div class="progress-bar-track mt-2">
+          <div class="progress-bar-fill" style="width: {{ (passed_assessments / total_assessments * 100)|round if total_assessments else 0 }}%;"></div>
+        </div>
+        <small class="text-muted mt-2 d-block">
+          {% if passed_assessments == total_assessments %}<i class="fa-solid fa-check text-success"></i> All Checkpoints Passed (>=70%){% else %}Pass remaining quizzes to complete course{% endif %}
+        </small>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="panel-card stat-summary-card">
+        <span class="text-muted-sm">Specialization Mastery</span>
+        <h3>{% if is_eligible %}Completed <i class="fa-solid fa-circle-check text-success"></i>{% else %}In Progress <i class="fa-solid fa-clock text-warning"></i>{% endif %}</h3>
+        <div class="mt-2">
+          {% if is_eligible %}
+            <a href="{{ url_for('dashboard') }}" class="btn-primary-sm w-100 text-center d-block">
+              Back to Dashboard <i class="fa-solid fa-arrow-right"></i>
+            </a>
+          {% else %}
+            <a href="{{ url_for('roadmap', course_id=course.id) }}" class="btn-outline-sm w-100 text-center d-block">
+              Continue Learning <i class="fa-solid fa-arrow-right"></i>
+            </a>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CAPSTONE PROJECT SECTION -->
+  {% if course.capstone_project and course.capstone_project.title %}
+    <section class="capstone-full-section panel-card mb-4">
+      <div class="d-flex align-items-center gap-3 mb-3">
+        <div class="capstone-badge-icon"><i class="fa-solid fa-laptop-code fa-2x text-purple"></i></div>
+        <div>
+          <span class="eyebrow text-purple">PRACTICAL CAPSTONE SPECIALIZATION</span>
+          <h2>{{ course.capstone_project.title }}</h2>
+        </div>
+      </div>
+
+      <p class="lead">{{ course.capstone_project.description }}</p>
+
+      <div class="capstone-tasks-box my-3 p-3 bg-dark rounded border border-secondary">
+        <h4 class="mb-2"><i class="fa-solid fa-list-check accent-icon"></i> Required Implementation Tasks:</h4>
+        <ul class="mb-0">
+          {% for task in course.capstone_project.tasks %}
+            <li class="py-1"><strong>{{ task }}</strong></li>
+          {% endfor %}
+        </ul>
+      </div>
+
+      {% if course.capstone_project.starter_code %}
+        <div class="capstone-starter-box my-3">
+          <h4><i class="fa-solid fa-code accent-icon"></i> Starter Template:</h4>
+          <pre class="bg-black text-white p-3 rounded border border-secondary"><code>{{ course.capstone_project.starter_code }}</code></pre>
+        </div>
+      {% endif %}
+
+      <div class="deliverables-box text-muted small">
+        <strong>Expected Deliverables:</strong> {{ course.capstone_project.deliverables }}
+      </div>
+    </section>
+  {% endif %}
+
+  <!-- COMPLETION SUMMARY SECTION -->
+  {% if is_eligible %}
+    <div class="panel-card text-center py-4 mb-4">
+      <div class="mb-2"><i class="fa-solid fa-circle-check fa-3x text-success"></i></div>
+      <h3>Course Completed Successfully!</h3>
+      <p class="text-muted mx-auto" style="max-width: 600px;">
+        You have completed all curriculum modules, passed every checkpoint assessment, and reviewed the capstone project for <strong>{{ course.title }}</strong>.
+      </p>
+      <div class="d-flex justify-content-center gap-3 mt-3">
+        <a href="{{ url_for('dashboard') }}" class="btn-primary">
+          Return to Dashboard <i class="fa-solid fa-house"></i>
+        </a>
+        <a href="{{ url_for('roadmap', course_id=course.id) }}" class="btn-outline">
+          Review Course Modules <i class="fa-solid fa-book-open"></i>
+        </a>
+      </div>
+    </div>
+  {% else %}
+    <div class="panel-card text-center p-4">
+      <div class="text-muted mb-2"><i class="fa-solid fa-clock fa-2x"></i></div>
+      <h4>Course In Progress</h4>
+      <p class="text-muted">You have completed {{ progress.completed_count }}/{{ progress.total_count }} lessons and passed {{ passed_assessments }}/{{ total_assessments }} quizzes. Complete all requirements to finish the specialization.</p>
+      <a href="{{ url_for('roadmap', course_id=course.id) }}" class="btn-primary">
+        Return to Lessons <i class="fa-solid fa-arrow-right"></i>
+      </a>
+    </div>
+  {% endif %}
+</div>
+{% endblock %}

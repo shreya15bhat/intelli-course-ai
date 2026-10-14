@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token() }}">
+  <title>{% block title %}CourseMind AI — Intelligent Learning Platform{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="{{ url_for('static', filename='css/style.css') }}" rel="stylesheet">
+  {% block head %}{% endblock %}
+</head>
+<body>
+{% if current_user.is_authenticated %}
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="{{ url_for('dashboard') }}">
+        <span class="brand-mark"><i class="fa-solid fa-graduation-cap"></i></span>
+        <span>CourseMind<span class="brand-ai"> AI</span></span>
+      </a>
+
+      <div class="side-label">LEARNING PLATFORM</div>
+      <nav class="side-nav">
+        <a href="{{ url_for('dashboard') }}" class="{{ 'active' if request.endpoint == 'dashboard' else '' }}">
+          <i class="fa-solid fa-house"></i> Dashboard
+        </a>
+        <a href="{{ url_for('my_courses') }}" class="{{ 'active' if request.endpoint in ['my_courses', 'course_preview', 'roadmap', 'lesson_page', 'course_completion'] else '' }}">
+          <i class="fa-solid fa-book-open"></i> My Courses
+        </a>
+        <a href="{{ url_for('explore') }}" class="{{ 'active' if request.endpoint == 'explore' else '' }}">
+          <i class="fa-regular fa-compass"></i> Explore Catalog
+        </a>
+        <a href="{{ url_for('chat') }}" class="{{ 'active' if request.endpoint == 'chat' else '' }}">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> AI Course Builder <span class="nav-dot"></span>
+        </a>
+
+        <div class="side-label">ACADEMIC PROGRESS</div>
+        <a href="{{ url_for('progress') }}" class="{{ 'active' if request.endpoint == 'progress' else '' }}">
+          <i class="fa-solid fa-chart-line"></i> Analytics & Skills
+        </a>
+        <a href="{{ url_for('study_planner') }}" class="{{ 'active' if request.endpoint == 'study_planner' else '' }}">
+          <i class="fa-regular fa-calendar-check"></i> Study Schedule
+        </a>
+        <a href="{{ url_for('profile') }}" class="{{ 'active' if request.endpoint == 'profile' else '' }}">
+          <i class="fa-solid fa-user"></i> Profile & Achievements
+        </a>
+        <a href="{{ url_for('settings') }}" class="{{ 'active' if request.endpoint == 'settings' else '' }}">
+          <i class="fa-solid fa-gear"></i> Settings
+        </a>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <div class="avatar">{{ current_user.name[:1]|upper }}</div>
+        <div class="user-mini">
+          <strong>{{ current_user.name }}</strong>
+          <span>{{ current_user.level }} Scholar</span>
+        </div>
+        <form method="post" action="{{ url_for('logout') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="icon-btn" title="Sign out" type="submit">
+            <i class="fa-solid fa-arrow-right-from-bracket"></i>
+          </button>
+        </form>
+      </div>
+    </aside>
+
+    <main class="main-area">
+      <header class="topbar">
+        <button class="icon-btn mobile-menu" id="menuToggle" aria-label="Toggle Navigation">
+          <i class="fa-solid fa-bars"></i>
+        </button>
+        <div class="crumb">
+          CourseMind <span>/</span> <b>{% block page_name %}Dashboard{% endblock %}</b>
+        </div>
+        <div class="top-actions">
+          {% if demo_mode %}
+            <span class="mode-pill demo" title="Running in deterministic Demo Mode without active Gemini key">
+              <span class="pulse-dot"></span> Offline Demo Mode
+            </span>
+          {% else %}
+            <span class="mode-pill live" title="Connected to Google Gemini Live API">
+              <span class="pulse-dot"></span> Gemini AI Active
+            </span>
+          {% endif %}
+          <a href="{{ url_for('chat') }}" class="btn-top-create">
+            <i class="fa-solid fa-plus"></i> <span>New Course</span>
+          </a>
+        </div>
+      </header>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="flash-wrap">
+            {% for category, message in messages %}
+              <div class="alert alert-{{ 'danger' if category == 'error' else 'info' }} alert-dismissible fade show">
+                {{ message }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+
+      <div class="page-content">
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+  </div>
+{% else %}
+  {% block public_content %}{% endblock %}
+{% endif %}
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

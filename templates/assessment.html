@@ -1,0 +1,233 @@
+{% extends 'base.html' %}
+{% block title %}{{ assessment.title }} — Module Assessment{% endblock %}
+{% block page_name %}Assessment{% endblock %}
+
+{% block content %}
+<div class="assessment-container">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <a class="back-link" href="{{ url_for('roadmap', course_id=assessment.module.course.id) }}">
+      <i class="fa-solid fa-arrow-left"></i> Back to Course Roadmap
+    </a>
+    <span class="badge-pill-sm"><i class="fa-solid fa-clock"></i> Untimed Assessment</span>
+  </div>
+
+  <div class="assessment-header-card panel-card mb-4">
+    <div class="d-flex align-items-center gap-3">
+      <div class="assessment-icon-box"><i class="fa-solid fa-list-check"></i></div>
+      <div>
+        <div class="eyebrow text-purple">MODULE CHECKPOINT</div>
+        <h1>{{ assessment.title }}</h1>
+        <p class="text-muted mb-0">{{ assessment.questions|length }} Multiple-Choice Questions &bull; Passing threshold: {{ assessment.passing_score }}%</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- QUIZ FORM -->
+  <form id="quizForm" class="quiz-interactive-form">
+    <div class="quiz-status-bar mb-4">
+      <span id="questionCounter">Question 1 of {{ assessment.questions|length }}</span>
+      <div class="progress-bar-track mt-1">
+        <div class="progress-bar-fill" id="quizBar" style="width: {{ (1 / assessment.questions|length * 100)|round }}%;"></div>
+      </div>
+    </div>
+
+    {% for q in assessment.questions %}
+      <section class="question-card panel-card mb-4" data-question-index="{{ loop.index0 }}" data-question-id="{{ q.id }}" {% if not loop.first %}style="display:none;"{% endif %}>
+        <div class="question-badge mb-2">QUESTION {{ loop.index }} OF {{ assessment.questions|length }}</div>
+        <h2 class="question-prompt">{{ q.prompt }}</h2>
+
+        <div class="answer-options-list mt-3">
+          {% for option in q.options %}
+            <label class="answer-option-label" for="q_{{ q.id }}_{{ loop.index0 }}">
+              <input type="radio" id="q_{{ q.id }}_{{ loop.index0 }}" name="question_{{ q.id }}" value="{{ loop.index0 }}">
+              <span class="option-letter-box">{{ 'ABCD'[loop.index0] }}</span>
+              <span class="option-text-content">{{ option }}</span>
+            </label>
+          {% endfor %}
+        </div>
+      </section>
+    {% endfor %}
+
+    <div class="quiz-action-nav">
+      <button type="button" class="btn-outline" id="quizPrevBtn" disabled>
+        <i class="fa-solid fa-arrow-left"></i> Previous Question
+      </button>
+      
+      <button type="button" class="btn-primary" id="quizNextBtn">
+        Next Question <i class="fa-solid fa-arrow-right"></i>
+      </button>
+
+      <button type="submit" class="btn-primary d-none" id="quizSubmitBtn">
+        Submit Assessment <i class="fa-solid fa-check"></i>
+      </button>
+    </div>
+  </form>
+
+  <!-- RESULT CONTAINER -->
+  <div id="quizResultPanel" class="panel-card quiz-results-card d-none mt-4">
+    <div class="result-summary-header text-center py-4">
+      <div id="resultBadgeIcon" class="result-badge-icon mb-2"></div>
+      <h2 id="resultTitle">Assessment Results</h2>
+      <div class="score-display my-2">
+        <span id="scorePercent" class="display-3 fw-bold"></span>
+      </div>
+      <p id="scoreSubtitle" class="lead text-muted"></p>
+    </div>
+
+    <hr class="border-secondary my-4">
+
+    <h3 class="mb-3"><i class="fa-solid fa-clipboard-check accent-icon"></i> Detailed Question Explanations</h3>
+    <div id="resultQuestionsList" class="results-breakdown-list"></div>
+
+    <div class="result-actions-bar text-center mt-4">
+      <button type="button" class="btn-outline" id="retryQuizBtn">
+        <i class="fa-solid fa-rotate-right"></i> Retry Assessment
+      </button>
+      <a href="{{ url_for('roadmap', course_id=assessment.module.course.id) }}" class="btn-primary ms-2">
+        Return to Roadmap <i class="fa-solid fa-arrow-right"></i>
+      </a>
+      <a href="{{ url_for('course_completion', course_id=assessment.module.course.id) }}" class="btn-outline ms-2">
+        Check Course Completion <i class="fa-solid fa-award"></i>
+      </a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(() => {
+  const form = document.getElementById('quizForm');
+  const cards = Array.from(document.querySelectorAll('.question-card'));
+  const totalQuestions = cards.length;
+  let currentIndex = 0;
+
+  const prevBtn = document.getElementById('quizPrevBtn');
+  const nextBtn = document.getElementById('quizNextBtn');
+  const submitBtn = document.getElementById('quizSubmitBtn');
+  const counter = document.getElementById('questionCounter');
+  const quizBar = document.getElementById('quizBar');
+  const csrfToken = document.querySelector('meta[name="csrf-token"]').content;
+
+  function updateView() {
+    cards.forEach((c, idx) => {
+      c.style.display = (idx === currentIndex) ? 'block' : 'none';
+    });
+    prevBtn.disabled = (currentIndex === 0);
+    
+    if (currentIndex === totalQuestions - 1) {
+      nextBtn.classList.add('d-none');
+      submitBtn.classList.remove('d-none');
+    } else {
+      nextBtn.classList.remove('d-none');
+      submitBtn.classList.add('d-none');
+    }
+
+    counter.textContent = `Question ${currentIndex + 1} of ${totalQuestions}`;
+    quizBar.style.width = `${((currentIndex + 1) / totalQuestions) * 100}%`;
+  }
+
+  prevBtn.addEventListener('click', () => {
+    if (currentIndex > 0) {
+      currentIndex--;
+      updateView();
+    }
+  });
+
+  nextBtn.addEventListener('click', () => {
+    if (currentIndex < totalQuestions - 1) {
+      currentIndex++;
+      updateView();
+    }
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Grading...';
+
+    // Collect answers
+    const answers = {};
+    cards.forEach(card => {
+      const qId = card.dataset.questionId;
+      const checked = card.querySelector('input[type="radio"]:checked');
+      if (checked) {
+        answers[qId] = parseInt(checked.value, 10);
+      }
+    });
+
+    try {
+      const res = await fetch(`/api/assessments/{{ assessment.id }}/submit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({ answers })
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to submit quiz.');
+
+      // Render results view
+      form.classList.add('d-none');
+      const resultPanel = document.getElementById('quizResultPanel');
+      resultPanel.classList.remove('d-none');
+
+      const passed = data.passed;
+      document.getElementById('resultBadgeIcon').innerHTML = passed 
+        ? '<i class="fa-solid fa-circle-check fa-4x text-success"></i>' 
+        : '<i class="fa-solid fa-circle-xmark fa-4x text-warning"></i>';
+
+      document.getElementById('resultTitle').textContent = passed ? 'Checkpoint Passed!' : 'Review and Retry';
+      document.getElementById('scorePercent').textContent = `${data.percentage}%`;
+      document.getElementById('scorePercent').className = `display-3 fw-bold ${passed ? 'text-success' : 'text-warning'}`;
+      document.getElementById('scoreSubtitle').textContent = `You scored ${data.score} out of ${data.total} correct (Passing requirement: ${data.passing_score}%).`;
+
+      // Render question breakdown
+      const listContainer = document.getElementById('resultQuestionsList');
+      listContainer.innerHTML = '';
+
+      data.details.forEach((det, i) => {
+        const cardElem = cards.find(c => c.dataset.questionId == det.question_id);
+        const promptText = cardElem ? cardElem.querySelector('.question-prompt').textContent : `Question ${i + 1}`;
+        const optionElems = cardElem ? Array.from(cardElem.querySelectorAll('.option-text-content')).map(o => o.textContent) : [];
+
+        const itemDiv = document.createElement('div');
+        itemDiv.className = `result-item-card mb-3 p-3 rounded ${det.correct ? 'border-success-subtle bg-dark' : 'border-danger-subtle bg-dark'}`;
+        itemDiv.innerHTML = `
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <span class="badge ${det.correct ? 'bg-success' : 'bg-danger'}">${det.correct ? 'Correct' : 'Incorrect'}</span>
+            <strong>${i + 1}. ${escapeHtml(promptText)}</strong>
+          </div>
+          <div class="result-answer-meta small mt-1">
+            <p class="mb-1 text-muted"><strong>Your selection:</strong> ${det.chosen >= 0 && optionElems[det.chosen] ? escapeHtml(optionElems[det.chosen]) : '<em>None selected</em>'}</p>
+            <p class="mb-1 text-success"><strong>Correct answer:</strong> ${optionElems[det.correct_index] ? escapeHtml(optionElems[det.correct_index]) : 'N/A'}</p>
+            <div class="p-2 mt-2 rounded bg-black small text-light border border-secondary">
+              <strong class="text-info"><i class="fa-solid fa-info-circle"></i> Explanation:</strong> ${escapeHtml(det.explanation)}
+            </div>
+          </div>
+        `;
+        listContainer.appendChild(itemDiv);
+      });
+
+      resultPanel.scrollIntoView({ behavior: 'smooth' });
+    } catch (err) {
+      alert(`Error submitting assessment: ${err.message}`);
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = 'Submit Assessment <i class="fa-solid fa-check"></i>';
+    }
+  });
+
+  document.getElementById('retryQuizBtn')?.addEventListener('click', () => {
+    window.location.reload();
+  });
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  updateView();
+})();
+</script>
+{% endblock %}
